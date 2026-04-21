@@ -3,7 +3,8 @@
 import { useEditor, EditorContent } from '@tiptap/react';
 import StarterKit from '@tiptap/starter-kit';
 import Image from '@tiptap/extension-image';
-import { useRef, useCallback, useEffect } from 'react';
+import { useRef, useCallback, useEffect, useState } from 'react';
+import toast from 'react-hot-toast';
 
 async function uploadImage(file) {
   const formData = new FormData();
@@ -23,65 +24,59 @@ async function uploadImage(file) {
   return data.url;
 }
 
-function MenuBar({ editor, onUploadImage }) {
+function MenuBar({ editor, onUploadImage, isUploading }) {
   if (!editor) return null;
 
-  const btnStyle = (isActive) => ({
-    padding: '4px 8px',
-    borderRadius: '6px',
-    fontSize: '13px',
-    fontWeight: 600,
-    cursor: 'pointer',
-    border: 'none',
-    background: isActive ? 'var(--primary)' : 'transparent',
-    color: isActive ? 'var(--primary-text)' : 'var(--text-secondary)',
-    transition: 'all 0.15s ease',
-  });
+  const btnClass = (isActive) => `px-2.5 py-1.5 rounded-lg text-sm font-semibold cursor-pointer transition-all ${isActive ? 'bg-green-500 text-white shadow-sm' : 'bg-transparent text-gray-500 hover:bg-gray-100 hover:text-gray-800'}`;
 
   return (
-    <div style={{ display: 'flex', gap: '4px', flexWrap: 'wrap', paddingBottom: '12px', borderBottom: '1px solid rgba(0,0,0,0.06)', marginBottom: '12px' }}>
-      <button type="button" onClick={() => editor.chain().focus().toggleBold().run()} style={btnStyle(editor.isActive('bold'))}>
+    <div className="flex gap-1 flex-wrap pb-3 border-b border-gray-100 mb-3">
+      <button type="button" onClick={() => editor.chain().focus().toggleBold().run()} className={btnClass(editor.isActive('bold'))} title="In đậm">
         <strong>B</strong>
       </button>
-      <button type="button" onClick={() => editor.chain().focus().toggleItalic().run()} style={btnStyle(editor.isActive('italic'))}>
+      <button type="button" onClick={() => editor.chain().focus().toggleItalic().run()} className={btnClass(editor.isActive('italic'))} title="In nghiêng">
         <em>I</em>
       </button>
-      <button type="button" onClick={() => editor.chain().focus().toggleStrike().run()} style={btnStyle(editor.isActive('strike'))}>
+      <button type="button" onClick={() => editor.chain().focus().toggleStrike().run()} className={btnClass(editor.isActive('strike'))} title="Gạch ngang">
         <s>S</s>
       </button>
 
-      <div style={{ width: '1px', background: 'rgba(0,0,0,0.1)', margin: '0 4px' }} />
+      <div className="w-[1px] bg-gray-200 mx-1" />
 
-      <button type="button" onClick={() => editor.chain().focus().toggleHeading({ level: 2 }).run()} style={btnStyle(editor.isActive('heading', { level: 2 }))}>
+      <button type="button" onClick={() => editor.chain().focus().toggleHeading({ level: 2 }).run()} className={btnClass(editor.isActive('heading', { level: 2 }))} title="Tiêu đề 2">
         H2
       </button>
-      <button type="button" onClick={() => editor.chain().focus().toggleHeading({ level: 3 }).run()} style={btnStyle(editor.isActive('heading', { level: 3 }))}>
+      <button type="button" onClick={() => editor.chain().focus().toggleHeading({ level: 3 }).run()} className={btnClass(editor.isActive('heading', { level: 3 }))} title="Tiêu đề 3">
         H3
       </button>
 
-      <div style={{ width: '1px', background: 'rgba(0,0,0,0.1)', margin: '0 4px' }} />
+      <div className="w-[1px] bg-gray-200 mx-1" />
 
-      <button type="button" onClick={() => editor.chain().focus().toggleBulletList().run()} style={btnStyle(editor.isActive('bulletList'))}>
+      <button type="button" onClick={() => editor.chain().focus().toggleBulletList().run()} className={btnClass(editor.isActive('bulletList'))} title="Danh sách dấu chấm">
         • List
       </button>
-      <button type="button" onClick={() => editor.chain().focus().toggleOrderedList().run()} style={btnStyle(editor.isActive('orderedList'))}>
+      <button type="button" onClick={() => editor.chain().focus().toggleOrderedList().run()} className={btnClass(editor.isActive('orderedList'))} title="Danh sách số">
         1. List
       </button>
 
-      <div style={{ width: '1px', background: 'rgba(0,0,0,0.1)', margin: '0 4px' }} />
+      <div className="w-[1px] bg-gray-200 mx-1" />
 
-      <button type="button" onClick={() => editor.chain().focus().toggleBlockquote().run()} style={btnStyle(editor.isActive('blockquote'))}>
+      <button type="button" onClick={() => editor.chain().focus().toggleBlockquote().run()} className={btnClass(editor.isActive('blockquote'))} title="Trích dẫn">
         ❝ Quote
       </button>
 
-      <div style={{ width: '1px', background: 'rgba(0,0,0,0.1)', margin: '0 4px' }} />
+      <div className="w-[1px] bg-gray-200 mx-1" />
 
-      <button type="button" onClick={onUploadImage} style={btnStyle(false)} title="Thêm ảnh">
-        <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
-          <rect x="3" y="3" width="18" height="18" rx="2" ry="2"></rect>
-          <circle cx="8.5" cy="8.5" r="1.5"></circle>
-          <polyline points="21 15 16 10 5 21"></polyline>
-        </svg>
+      <button type="button" onClick={onUploadImage} disabled={isUploading} className={`${btnClass(false)} ${isUploading ? 'opacity-50 cursor-not-allowed' : ''}`} title="Thêm ảnh">
+        {isUploading ? (
+          <div className="w-4 h-4 border-2 border-green-500 border-t-transparent rounded-full animate-spin" />
+        ) : (
+          <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
+            <rect x="3" y="3" width="18" height="18" rx="2" ry="2"></rect>
+            <circle cx="8.5" cy="8.5" r="1.5"></circle>
+            <polyline points="21 15 16 10 5 21"></polyline>
+          </svg>
+        )}
       </button>
     </div>
   );
@@ -90,15 +85,23 @@ function MenuBar({ editor, onUploadImage }) {
 export default function Editor({ value, onChange }) {
   const fileInputRef = useRef(null);
   const editorRef = useRef(null);
+  const [isUploading, setIsUploading] = useState(false);
 
   const insertImage = useCallback(async (file) => {
     const ed = editorRef.current;
     if (!ed) return;
+    
+    setIsUploading(true);
+    const toastId = toast.loading('Đang tải ảnh lên...');
+    
     try {
       const url = await uploadImage(file);
       ed.chain().focus().setImage({ src: url }).run();
+      toast.success('Đã tải ảnh lên thành công', { id: toastId });
     } catch (err) {
-      alert(err.message || 'Lỗi khi upload ảnh');
+      toast.error(err.message || 'Lỗi khi upload ảnh', { id: toastId });
+    } finally {
+      setIsUploading(false);
     }
   }, []);
 
@@ -168,22 +171,16 @@ export default function Editor({ value, onChange }) {
   };
 
   return (
-    <div className="tiptap-editor" style={{ 
-      background: '#ffffff', 
-      border: '1px solid rgba(0,0,0,0.1)', 
-      borderRadius: '12px', 
-      padding: '16px',
-      minHeight: '200px'
-    }}>
-      <MenuBar editor={editor} onUploadImage={handleUploadClick} />
-      <EditorContent editor={editor} />
+    <div className="tiptap-editor min-h-[200px]">
+      <MenuBar editor={editor} onUploadImage={handleUploadClick} isUploading={isUploading} />
+      <EditorContent editor={editor} className={`text-gray-800 transition-opacity ${isUploading ? 'opacity-60' : 'opacity-100'}`} />
       <input
         ref={fileInputRef}
         type="file"
         accept="image/*"
         multiple
         onChange={handleFileChange}
-        style={{ display: 'none' }}
+        className="hidden"
       />
     </div>
   );
