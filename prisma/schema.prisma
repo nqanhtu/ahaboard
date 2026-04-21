@@ -1,0 +1,57 @@
+generator client {
+  provider = "prisma-client-js"
+}
+
+datasource db {
+  provider = "postgresql"
+  url      = env("DATABASE_URL")
+}
+
+model User {
+  id       String  @id @default(cuid())
+  username String  @unique
+  name     String
+  password     String
+  cards        Card[]        @relation("Assignee")
+  activityLogs ActivityLog[]
+}
+
+model Board {
+  id          String   @id @default(cuid())
+  title       String
+  prefix      String   @default("CARD")
+  cardCounter Int      @default(0)
+  columns     Column[]
+}
+
+model Column {
+  id      String   @id @default(cuid())
+  title   String
+  order   Int
+  boardId String
+  board   Board    @relation(fields: [boardId], references: [id], onDelete: Cascade)
+  cards   Card[]
+}
+
+model Card {
+  id          String   @id @default(cuid())
+  displayId   String?  @unique
+  title       String
+  description String?
+  order       Int
+  columnId    String
+  column      Column   @relation(fields: [columnId], references: [id], onDelete: Cascade)
+  assigneeId  String?
+  assignee    User?    @relation("Assignee", fields: [assigneeId], references: [id], onDelete: SetNull)
+  createdAt   DateTime @default(now())
+  updatedAt   DateTime @updatedAt
+}
+
+model ActivityLog {
+  id          String   @id @default(cuid())
+  action      String
+  entityTitle String
+  userId      String
+  user        User     @relation(fields: [userId], references: [id], onDelete: Cascade)
+  createdAt   DateTime @default(now())
+}

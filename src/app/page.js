@@ -1,66 +1,68 @@
-import Image from "next/image";
-import styles from "./page.module.css";
+import { auth } from "@/auth"
+import { redirect } from "next/navigation"
+import { getBoardData, getUsers, getBoards } from "@/actions/kanban"
+import KanbanBoard from "@/components/KanbanBoard"
+import BoardSelector from "@/components/BoardSelector"
+import { handleSignOut } from "@/actions/auth"
 
-export default function Home() {
+export const metadata = {
+  title: 'Aha Kanban',
+}
+
+export default async function Home({ searchParams }) {
+  const session = await auth()
+  const params = await searchParams
+  
+  if (!session) {
+    redirect('/login')
+  }
+
+  const boardId = params?.boardId
+  const board = await getBoardData(boardId)
+  const boards = await getBoards()
+  const users = await getUsers()
+
+  if (!board && boards.length === 0) {
+    return (
+      <div style={{ padding: '20px', color: 'white' }}>
+        Không tìm thấy bảng công việc. Vui lòng chạy script khởi tạo.
+      </div>
+    )
+  }
+
   return (
-    <div className={styles.page}>
-      <main className={styles.main}>
-        <Image
-          className={styles.logo}
-          src="/next.svg"
-          alt="Next.js logo"
-          width={100}
-          height={20}
-          priority
-        />
-        <div className={styles.intro}>
-          <h1>To get started, edit the page.js file.</h1>
-          <p>
-            Looking for a starting point or more instructions? Head over to{" "}
-            <a
-              href="https://vercel.com/templates?framework=next.js&utm_source=create-next-app&utm_medium=appdir-template-tw&utm_campaign=create-next-app"
-              target="_blank"
-              rel="noopener noreferrer"
-            >
-              Templates
-            </a>{" "}
-            or the{" "}
-            <a
-              href="https://nextjs.org/learn?utm_source=create-next-app&utm_medium=appdir-template-tw&utm_campaign=create-next-app"
-              target="_blank"
-              rel="noopener noreferrer"
-            >
-              Learning
-            </a>{" "}
-            center.
-          </p>
+    <div className="app-layout">
+      {/* Navbar wrapper */}
+      <div className="app-header">
+        <div style={{ display: 'flex', alignItems: 'center', gap: '8px', fontWeight: 'bold' }}>
+          <svg width="24" height="24" viewBox="0 0 32 32" xmlns="http://www.w3.org/2000/svg">
+            <rect width="32" height="32" rx="8" fill="#0f766e"/>
+            <rect x="6" y="7" width="5" height="18" rx="1.5" fill="white" opacity="0.9"/>
+            <rect x="13.5" y="7" width="5" height="12" rx="1.5" fill="white" opacity="0.9"/>
+            <rect x="21" y="7" width="5" height="15" rx="1.5" fill="white" opacity="0.9"/>
+          </svg>
+          Aha Kanban
         </div>
-        <div className={styles.ctas}>
-          <a
-            className={styles.primary}
-            href="https://vercel.com/new?utm_source=create-next-app&utm_medium=appdir-template&utm_campaign=create-next-app"
-            target="_blank"
-            rel="noopener noreferrer"
-          >
-            <Image
-              className={styles.logo}
-              src="/vercel.svg"
-              alt="Vercel logomark"
-              width={16}
-              height={16}
-            />
-            Deploy Now
-          </a>
-          <a
-            className={styles.secondary}
-            href="https://nextjs.org/docs?utm_source=create-next-app&utm_medium=appdir-template&utm_campaign=create-next-app"
-            target="_blank"
-            rel="noopener noreferrer"
-          >
-            Documentation
-          </a>
+        
+        {boards.length > 0 && (
+          <div style={{ marginLeft: '24px' }}>
+            <BoardSelector boards={boards} activeBoardId={board?.id} />
+          </div>
+        )}
+
+        <div style={{ display: 'flex', alignItems: 'center', gap: '16px', marginLeft: 'auto' }}>
+          <div style={{ fontSize: '14px', fontWeight: 500 }}>
+            Xin chào, {session.user.name || session.user.username}
+          </div>
+          <form action={handleSignOut}>
+            <button type="submit" className="btn btn-primary" style={{ padding: '6px 12px', fontSize: '13px' }}>
+              Đăng xuất
+            </button>
+          </form>
         </div>
-      </main>
+      </div>
+
+      {board && <KanbanBoard key={board.id} initialBoard={board} users={users} />}
     </div>
-  );
+  )
 }
