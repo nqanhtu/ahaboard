@@ -1,13 +1,17 @@
 'use client'
 
-import React, { useState, useEffect, Suspense } from 'react'
+import React, { useState, useEffect, Suspense, useCallback } from 'react'
 import { createPortal } from 'react-dom'
 import { useRouter, useSearchParams, usePathname } from 'next/navigation'
-import { DragDropContext, Droppable, Draggable } from '@hello-pangea/dnd'
+import { DragDropContext, Draggable } from '@hello-pangea/dnd'
 import { updateCardOrder, createCard, updateCardDetails, deleteCard, getHistory } from '@/actions/kanban'
 import dynamic from 'next/dynamic'
 import toast from 'react-hot-toast'
 import { motion, AnimatePresence } from 'framer-motion'
+import { ChevronDownIcon, PlusIcon, CloseIcon, ClockIcon, TrashIcon, UserIcon, CommentIcon } from './icons'
+import { ModalOverlay, ModalPanel, UserAvatar, ActiveDot, DROPDOWN_ANIMATION } from './ui'
+import { getPreviewText } from '@/utils/text'
+import KanbanColumn from './KanbanColumn'
 
 const Editor = dynamic(() => import('@/components/Editor'), { 
   ssr: false,
@@ -23,7 +27,7 @@ export default function KanbanBoardWrapper(props) {
 }
 
 // Separate Card Component to allow memoization
-const KanbanCard = React.memo(({ card, index, openEditModal, getPreviewText }) => {
+const KanbanCard = React.memo(({ card, index, openEditModal }) => {
   return (
     <Draggable draggableId={card.id} index={index}>
       {(provided, snapshot) => (
@@ -60,14 +64,14 @@ const KanbanCard = React.memo(({ card, index, openEditModal, getPreviewText }) =
             ) : (
               <div className="flex items-center gap-2 opacity-40">
                 <div className="w-8 h-8 rounded-xl bg-gray-200 flex items-center justify-center">
-                  <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5"><path d="M20 21v-2a4 4 0 0 0-4-4H8a4 4 0 0 0-4 4v2"></path><circle cx="12" cy="7" r="4"></circle></svg>
+                  <UserIcon />
                 </div>
               </div>
             )}
             
             <div className="flex items-center gap-2">
                {card.description && (
-                 <svg className="text-gray-300" width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5"><path d="M21 15a2 2 0 0 1-2 2H7l-4 4V5a2 2 0 0 1 2-2h14a2 2 0 0 1 2 2z"></path></svg>
+                 <CommentIcon />
                )}
             </div>
           </div>
@@ -81,19 +85,22 @@ const KanbanCard = React.memo(({ card, index, openEditModal, getPreviewText }) =
 KanbanCard.displayName = 'KanbanCard';
 
 function KanbanBoard({ initialBoard, users = [] }) {
+  // --- Board State ---
   const [board, setBoard] = useState(initialBoard)
+  const [isMounted, setIsMounted] = useState(false)
+  const [selectedColumnId, setSelectedColumnId] = useState(null)
+
+  // --- Card Creation State ---
   const [isAddingCardTo, setIsAddingCardTo] = useState(null)
   const [newCardTitle, setNewCardTitle] = useState('')
+
+  // --- Edit Modal State ---
   const [editingCard, setEditingCard] = useState(null)
-  const [mounted, setMounted] = useState(false)
   const [isAssigneeOpen, setIsAssigneeOpen] = useState(false)
-  
-  useEffect(() => {
-    setMounted(true)
-  }, [])
   const [editForm, setEditForm] = useState({ title: '', description: '', assigneeId: null })
   const [showDeleteConfirm, setShowDeleteConfirm] = useState(false)
   
+  // --- History State ---
   const [showHistory, setShowHistory] = useState(false)
   const [historyLogs, setHistoryLogs] = useState([])
   const [loadingHistory, setLoadingHistory] = useState(false)
@@ -102,82 +109,79 @@ function KanbanBoard({ initialBoard, users = [] }) {
   const searchParams = useSearchParams()
   const pathname = usePathname()
 
-  // Add mounted state to fix hydration mismatch with react-beautiful-dnd
-  const [isMounted, setIsMounted] = useState(false)
-
   // Find card helper (by internal id or displayId)
-  const findCardById = (identifier) => {
+  const findCardById = useCallback((identifier) => {
     for (const col of board.columns) {
       const card = col.cards.find(c => c.id === identifier || c.displayId === identifier)
       if (card) return card
     }
     return null
-  }
+  }, [board.columns])
 
-  // Extract plain text from rich editor JSON for card preview
-  const getPreviewText = (desc) => {
-    if (!desc) return null;
-    try {
-      const data = JSON.parse(desc);
-      // Tiptap JSON format (doc > content > paragraph/heading nodes)
-      if (data.type === 'doc' && data.content) {
-        const extractText = (nodes) => {
-          if (!nodes) return '';
-          return nodes.map(node => {
-            if (node.text) return node.text;
-            if (node.content) return extractText(node.content);
-            return '';
-          }).join(' ');
-        };
-        return extractText(data.content).trim();
-      }
-      // Editor.js format (blocks array) — backward compatibility
-      if (data.blocks) {
-        return data.blocks.map(b => b.data?.text || '').join(' ').replace(/<[^>]*>?/gm, '');
-      }
-      return desc;
-    } catch(e) {
-      return desc;
-    }
-  }
+  // Extract plain text from rich editor JSON for card preview (moved to utils/text.js)
 
-  const [selectedColumnId, setSelectedColumnId] = useState(null)
+
 
   useEffect(() => {
-    setIsMounted(true)
-    if (board.columns.length > 0) {
-      setSelectedColumnId(board.columns[0].id)
-    }
+    const timer = setTimeout(() => {
+      setIsMounted(true)
+      if (board.columns.length > 0) {
+        setSelectedColumnId(id => id || board.columns[0].id)
+      }
+    }, 0)
+    return () => clearTimeout(timer)
   }, [board.columns])
 
   // Sync URL with Modal state
   useEffect(() => {
     if (!isMounted) return
 
-    const cardIdFromUrl = searchParams.get('card')
-    if (cardIdFromUrl) {
-      const card = findCardById(cardIdFromUrl)
-      if (card && (!editingCard || (editingCard.displayId || editingCard.id) !== cardIdFromUrl)) {
-        // Open modal without pushing url again
-        setEditingCard(card)
-        setEditForm({ 
-          title: card.title, 
-          description: card.description || '',
-          assigneeId: card.assigneeId || null
-        })
-        setShowDeleteConfirm(false)
-        
-        // Also ensure the column is selected on mobile if the card belongs to a different column
-        if (card.columnId !== selectedColumnId) {
-          setSelectedColumnId(card.columnId)
+    const timer = setTimeout(() => {
+      const cardIdFromUrl = searchParams.get('card')
+      if (cardIdFromUrl) {
+        const card = findCardById(cardIdFromUrl)
+        if (card && (!editingCard || (editingCard.displayId || editingCard.id) !== cardIdFromUrl)) {
+          // Open modal without pushing url again
+          setEditingCard(card)
+          setEditForm({ 
+            title: card.title, 
+            description: card.description || '',
+            assigneeId: card.assigneeId || null
+          })
+          setShowDeleteConfirm(false)
+          
+          // Also ensure the column is selected on mobile if the card belongs to a different column
+          if (card.columnId !== selectedColumnId) {
+            setSelectedColumnId(card.columnId)
+          }
         }
+      } else if (editingCard) {
+        // url has no card parameter but modal is open (e.g. hit back button)
+        setEditingCard(null)
+        setShowDeleteConfirm(false)
       }
-    } else if (editingCard) {
-      // url has no card parameter but modal is open (e.g. hit back button)
-      setEditingCard(null)
-      setShowDeleteConfirm(false)
-    }
-  }, [searchParams, isMounted]) // Don't add board as dependency to avoid re-triggering on drag
+    }, 0)
+
+    return () => clearTimeout(timer)
+  }, [searchParams, isMounted, editingCard, findCardById, selectedColumnId])
+
+  const openEditModal = useCallback((card) => {
+    setEditingCard(card)
+    setEditForm({ 
+      title: card.title, 
+      description: card.description || '',
+      assigneeId: card.assigneeId || null
+    })
+    setShowDeleteConfirm(false)
+    router.push(`${pathname}?card=${card.displayId || card.id}`, { scroll: false })
+  }, [pathname, router])
+
+  const closeEditModal = useCallback(() => {
+    setEditingCard(null)
+    setShowDeleteConfirm(false)
+    setIsAssigneeOpen(false)
+    router.push(pathname, { scroll: false })
+  }, [pathname, router])
 
   if (!isMounted) {
     return null // or a loading skeleton
@@ -286,23 +290,7 @@ function KanbanBoard({ initialBoard, users = [] }) {
     }
   }
 
-  const openEditModal = (card) => {
-    setEditingCard(card)
-    setEditForm({ 
-      title: card.title, 
-      description: card.description || '',
-      assigneeId: card.assigneeId || null
-    })
-    setShowDeleteConfirm(false)
-    router.push(`${pathname}?card=${card.displayId || card.id}`, { scroll: false })
-  }
 
-  const closeEditModal = () => {
-    setEditingCard(null)
-    setShowDeleteConfirm(false)
-    setIsAssigneeOpen(false)
-    router.push(pathname, { scroll: false })
-  }
 
   const handleSaveCard = async () => {
     if (!editForm.title.trim() || !editingCard) return
@@ -393,10 +381,7 @@ function KanbanBoard({ initialBoard, users = [] }) {
             className="hidden md:flex items-center gap-2 px-4 py-2 text-sm font-bold text-gray-600 hover:text-green-700 hover:bg-green-100/50 rounded-full transition-all" 
             onClick={handleOpenHistory}
           >
-            <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round">
-              <circle cx="12" cy="12" r="10"></circle>
-              <polyline points="12 6 12 12 16 14"></polyline>
-            </svg>
+            <ClockIcon />
             Lịch sử hoạt động
           </button>
         </div>
@@ -405,106 +390,38 @@ function KanbanBoard({ initialBoard, users = [] }) {
       <div className="flex-1 relative overflow-hidden h-full">
         <DragDropContext onDragEnd={handleDragEnd}>
           <div className="flex items-start p-6 md:p-8 h-full overflow-x-auto md:overflow-x-auto md:overflow-y-hidden gap-6 scroll-smooth">
-            {board.columns.map((column, colIndex) => {
-              // On mobile, only show the selected column
-              const isSelectedOnMobile = selectedColumnId === column.id;
-              
-              const bgColors = ['bg-pink-50', 'bg-orange-50', 'bg-blue-50', 'bg-purple-50'];
-              const dotColors = ['bg-pink-500', 'bg-orange-500', 'bg-blue-500', 'bg-purple-500'];
-              const colBg = bgColors[colIndex % 4];
-              const dotBg = dotColors[colIndex % 4];
-              
-              return (
-                <div 
-                  key={column.id} 
-                  className={`w-full md:w-[340px] md:min-w-[340px] max-h-full flex flex-col rounded-[2rem] md:rounded-3xl ${colBg} border border-black/5 shadow-sm transition-all duration-300 ${isSelectedOnMobile ? 'flex' : 'hidden md:flex'}`}
-                >
-                  <div className="flex items-center gap-3 px-6 py-5 font-extrabold text-gray-900 border-b border-black/[0.03]">
-                    <div className={`w-3 h-3 rounded-full ${dotBg} shadow-sm`} />
-                    <span className="truncate">{column.title}</span>
-                    <span className="ml-auto text-xs font-bold text-gray-500 bg-white/80 backdrop-blur-sm px-2.5 py-1 rounded-full shadow-sm border border-black/[0.02]">
-                      {column.cards.length}
-                    </span>
-                  </div>
-                  
-                  <Droppable droppableId={column.id}>
-                    {(provided, snapshot) => (
-                      <div 
-                        className="flex-1 overflow-y-auto px-4 py-4 min-h-[100px] scrollbar-thin scrollbar-thumb-black/5 scrollbar-track-transparent"
-                        ref={provided.innerRef}
-                        {...provided.droppableProps}
-                      >
-                        {column.cards.map((card, index) => (
-                          <KanbanCard 
-                            key={card.id} 
-                            card={card} 
-                            index={index} 
-                            openEditModal={openEditModal} 
-                            getPreviewText={getPreviewText} 
-                          />
-                        ))}
-                        {provided.placeholder}
-                      </div>
-                    )}
-                  </Droppable>
-
-                  <div className="p-4 border-t border-black/[0.03]">
-                    {isAddingCardTo === column.id ? (
-                      <motion.div initial={{ opacity: 0, y: 10 }} animate={{ opacity: 1, y: 0 }}>
-                        <textarea
-                          autoFocus
-                          className="w-full min-h-[100px] p-4 rounded-2xl border border-black/10 bg-white text-gray-900 focus:outline-none focus:border-green-500 focus:ring-4 focus:ring-green-500/10 transition-all resize-none shadow-sm mb-3 text-sm font-medium"
-                          placeholder="Công việc mới..."
-                          value={newCardTitle}
-                          onChange={(e) => setNewCardTitle(e.target.value)}
-                          onKeyDown={(e) => handleKeyDown(e, column.id)}
-                          onBlur={() => handleAddCard(column.id)}
-                        />
-                        <div className="flex gap-2">
-                          <button 
-                            className="bg-green-500 hover:bg-green-600 text-white px-5 py-2.5 rounded-full font-bold transition-all shadow-md shadow-green-500/20 hover:shadow-green-500/30 hover:-translate-y-0.5 text-sm"
-                            onMouseDown={(e) => {
-                              e.preventDefault()
-                              handleAddCard(column.id)
-                            }}
-                          >
-                            Thêm ngay
-                          </button>
-                          <button 
-                            className="text-gray-500 hover:bg-black/5 hover:text-gray-900 px-5 py-2.5 rounded-full font-bold transition-all text-sm"
-                            onClick={() => {
-                              setIsAddingCardTo(null)
-                              setNewCardTitle('')
-                            }}
-                          >
-                            Hủy
-                          </button>
-                        </div>
-                      </motion.div>
-                    ) : (
-                      <button className="w-full text-left p-4 text-gray-500 hover:text-green-700 hover:bg-white/60 rounded-2xl flex items-center gap-3 font-bold transition-all border border-transparent hover:border-green-100 hover:shadow-sm" onClick={() => setIsAddingCardTo(column.id)}>
-                        <div className="w-6 h-6 rounded-lg bg-green-500/10 text-green-600 flex items-center justify-center">
-                          <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="3" strokeLinecap="round" strokeLinejoin="round">
-                            <line x1="12" y1="5" x2="12" y2="19"></line>
-                            <line x1="5" y1="12" x2="19" y2="12"></line>
-                          </svg>
-                        </div>
-                        Thêm thẻ mới
-                      </button>
-                    )}
-                  </div>
-                </div>
-              )})}
+            {board.columns.map((column, colIndex) => (
+              <KanbanColumn
+                key={column.id}
+                column={column}
+                colIndex={colIndex}
+                isSelectedOnMobile={selectedColumnId === column.id}
+                isAddingCardTo={isAddingCardTo}
+                setIsAddingCardTo={setIsAddingCardTo}
+                newCardTitle={newCardTitle}
+                setNewCardTitle={setNewCardTitle}
+                handleAddCard={handleAddCard}
+                handleKeyDown={handleKeyDown}
+                renderCard={(card, index) => (
+                  <KanbanCard 
+                    key={card.id} 
+                    card={card} 
+                    index={index} 
+                    openEditModal={openEditModal} 
+                  />
+                )}
+              />
+            ))}
           </div>
         </DragDropContext>
       </div>
 
       {/* Edit Card Modal */}
-      {mounted && createPortal(
+      {isMounted && createPortal(
         <AnimatePresence>
           {editingCard && (
-            <motion.div className="fixed inset-0 bg-black/40 backdrop-blur-sm flex justify-center items-start z-[9999] pt-16 px-4" onClick={closeEditModal} initial={{ opacity: 0 }} animate={{ opacity: 1 }} exit={{ opacity: 0 }} transition={{ duration: 0.2 }}>
-              <motion.div className="bg-white w-full max-w-[640px] rounded-[2.5rem] shadow-2xl flex flex-col overflow-hidden max-h-[85vh] border border-white/10" onClick={e => e.stopPropagation()} initial={{ opacity: 0, y: 32, scale: 0.96 }} animate={{ opacity: 1, y: 0, scale: 1 }} exit={{ opacity: 0, y: 16, scale: 0.98 }} transition={{ type: 'spring', damping: 28, stiffness: 380 }}>
+            <ModalOverlay onClose={closeEditModal} className="pt-16">
+              <ModalPanel className="max-w-[640px] max-h-[85vh]">
                 <div className="p-8 pb-4 border-b border-gray-100">
                   {editingCard.displayId && (
                     <div className="text-xs font-semibold text-gray-400 mb-2 font-mono">
@@ -536,7 +453,7 @@ function KanbanBoard({ initialBoard, users = [] }) {
                           </span>
                         </div>
                         <div className={`text-gray-400 group-hover:text-green-600 transition-transform duration-300 ${isAssigneeOpen ? 'rotate-180' : ''}`}>
-                          <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="3" strokeLinecap="round" strokeLinejoin="round"><path d="m6 9 6 6 6-6"/></svg>
+                          <ChevronDownIcon size={18} />
                         </div>
                       </button>
 
@@ -545,10 +462,7 @@ function KanbanBoard({ initialBoard, users = [] }) {
                           <>
                             <div className="fixed inset-0 z-[100]" onClick={() => setIsAssigneeOpen(false)} />
                             <motion.div
-                              initial={{ opacity: 0, y: 8, scale: 0.95 }}
-                              animate={{ opacity: 1, y: 0, scale: 1 }}
-                              exit={{ opacity: 0, y: 8, scale: 0.95 }}
-                              transition={{ duration: 0.15 }}
+                              {...DROPDOWN_ANIMATION}
                               className="absolute top-full left-0 mt-2 w-full bg-white border border-gray-200 rounded-3xl shadow-2xl z-[110] overflow-hidden p-2 origin-top"
                             >
                               <button
@@ -576,13 +490,15 @@ function KanbanBoard({ initialBoard, users = [] }) {
                                   className={`w-full text-left px-4 py-3 rounded-xl text-[14px] font-bold transition-all flex items-center justify-between group ${editForm.assigneeId === user.id ? 'bg-green-50 text-green-700' : 'text-gray-600 hover:bg-gray-50'}`}
                                 >
                                   <div className="flex items-center gap-3">
-                                    <div className={`w-8 h-8 rounded-full flex items-center justify-center font-bold text-xs border transition-colors ${editForm.assigneeId === user.id ? 'bg-green-100 border-green-200 text-green-700' : 'bg-gray-100 border-gray-200 text-gray-500'}`}>
-                                      {user.name ? user.name.charAt(0).toUpperCase() : '?'}
-                                    </div>
+                                    <UserAvatar 
+                                      name={user.name || user.username} 
+                                      isActive={editForm.assigneeId === user.id} 
+                                      size="sm" 
+                                    />
                                     <span>{user.name || user.username}</span>
                                   </div>
                                   {editForm.assigneeId === user.id && (
-                                    <div className="w-2 h-2 rounded-full bg-green-500 shadow-[0_0_8px_rgba(34,197,94,0.6)]" />
+                                    <ActiveDot />
                                   )}
                                 </button>
                               ))}
@@ -613,7 +529,7 @@ function KanbanBoard({ initialBoard, users = [] }) {
                     ) : (
                       <div className="mt-8 flex justify-between items-center pt-4">
                         <button className="text-red-500 hover:bg-red-50 hover:text-red-600 px-5 py-2.5 rounded-full text-sm font-semibold transition-colors flex items-center gap-2" onClick={handleDeleteCard}>
-                          <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><path d="M3 6h18"></path><path d="M19 6v14c0 1-1 2-2 2H7c-1 0-2-1-2-2V6"></path><path d="M8 6V4c0-1 1-2 2-2h4c1 0 2 1 2 2v2"></path></svg>
+                          <TrashIcon />
                           Xóa thẻ
                         </button>
                         <div className="flex gap-3">
@@ -624,23 +540,23 @@ function KanbanBoard({ initialBoard, users = [] }) {
                     )}
                   </div>
                 </div>
-              </motion.div>
-            </motion.div>
+              </ModalPanel>
+            </ModalOverlay>
           )}
         </AnimatePresence>,
         document.body
       )}
 
       {/* History Modal */}
-      {mounted && createPortal(
+      {isMounted && createPortal(
         <AnimatePresence>
           {showHistory && (
-            <motion.div className="fixed inset-0 bg-black/40 backdrop-blur-sm flex justify-center items-start z-[9999] pt-24 px-4" onClick={() => setShowHistory(false)} initial={{ opacity: 0 }} animate={{ opacity: 1 }} exit={{ opacity: 0 }} transition={{ duration: 0.2 }}>
-              <motion.div className="bg-white w-full max-w-[500px] rounded-[2.5rem] shadow-2xl flex flex-col overflow-hidden border border-white/10" onClick={e => e.stopPropagation()} initial={{ opacity: 0, y: 32, scale: 0.96 }} animate={{ opacity: 1, y: 0, scale: 1 }} exit={{ opacity: 0, y: 16, scale: 0.98 }} transition={{ type: 'spring', damping: 28, stiffness: 380 }}>
+            <ModalOverlay onClose={() => setShowHistory(false)} className="pt-24">
+              <ModalPanel className="max-w-[500px]">
                 <div className="flex justify-between items-center p-6 px-8">
                   <h3 className="text-xl font-bold text-gray-800">Lịch sử hoạt động</h3>
                   <button className="text-gray-400 hover:text-gray-700 hover:bg-gray-200 p-2 rounded-full transition-colors" onClick={() => setShowHistory(false)}>
-                    <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><line x1="18" y1="6" x2="6" y2="18"></line><line x1="6" y1="6" x2="18" y2="18"></line></svg>
+                    <CloseIcon />
                   </button>
                 </div>
                 <div className="p-0 max-h-[60vh] overflow-y-auto">
@@ -658,8 +574,8 @@ function KanbanBoard({ initialBoard, users = [] }) {
                     </div>
                   ) : historyLogs.length === 0 ? (
                     <div className="p-12 text-center">
-                      <div className="w-16 h-16 mx-auto mb-4 rounded-full bg-gray-100 flex items-center justify-center">
-                        <svg width="28" height="28" viewBox="0 0 24 24" fill="none" stroke="#9ca3af" strokeWidth="1.5" strokeLinecap="round" strokeLinejoin="round"><circle cx="12" cy="12" r="10"></circle><polyline points="12 6 12 12 16 14"></polyline></svg>
+                      <div className="w-16 h-16 mx-auto mb-4 rounded-full bg-gray-100 flex items-center justify-center text-gray-400">
+                        <ClockIcon size={28} />
                       </div>
                       <p className="text-gray-500 font-semibold mb-1">Chưa có hoạt động nào</p>
                       <p className="text-gray-400 text-sm">Các thay đổi sẽ được ghi lại tại đây.</p>
@@ -685,8 +601,8 @@ function KanbanBoard({ initialBoard, users = [] }) {
                     </ul>
                   )}
                 </div>
-              </motion.div>
-            </motion.div>
+              </ModalPanel>
+            </ModalOverlay>
           )}
         </AnimatePresence>,
         document.body

@@ -6,6 +6,8 @@ import { useRouter } from 'next/navigation'
 import { createBoard } from '@/actions/kanban'
 import toast from 'react-hot-toast'
 import { motion, AnimatePresence } from 'framer-motion'
+import { ChevronDownIcon, PlusIcon } from './icons'
+import { ModalOverlay, ModalPanel, ActiveDot, DROPDOWN_ANIMATION } from './ui'
 
 export default function BoardSelector({ boards, activeBoardId }) {
   const router = useRouter()
@@ -53,9 +55,7 @@ export default function BoardSelector({ boards, activeBoardId }) {
         >
           <span className="truncate">{activeBoard?.title}</span>
           <div className={`absolute right-5 transition-transform duration-300 ${isOpen ? 'rotate-180 text-green-600' : 'text-gray-400 group-hover:text-green-600'}`}>
-            <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="3" strokeLinecap="round" strokeLinejoin="round">
-              <path d="m6 9 6 6 6-6"/>
-            </svg>
+            <ChevronDownIcon />
           </div>
         </button>
 
@@ -66,10 +66,7 @@ export default function BoardSelector({ boards, activeBoardId }) {
               <div className="fixed inset-0 z-[60]" onClick={() => setIsOpen(false)} />
               
               <motion.div 
-                initial={{ opacity: 0, y: 8, scale: 0.95 }}
-                animate={{ opacity: 1, y: 0, scale: 1 }}
-                exit={{ opacity: 0, y: 8, scale: 0.95 }}
-                transition={{ duration: 0.15, ease: "easeOut" }}
+                {...DROPDOWN_ANIMATION}
                 className="absolute top-full left-0 mt-2 w-full min-w-[260px] bg-white/95 backdrop-blur-xl border border-gray-200 rounded-[2rem] shadow-2xl z-[70] overflow-hidden p-2 origin-top"
               >
                 <div className="max-h-[300px] overflow-y-auto overflow-x-hidden scrollbar-thin scrollbar-thumb-gray-100">
@@ -86,7 +83,7 @@ export default function BoardSelector({ boards, activeBoardId }) {
                     >
                       <span className="truncate flex-1">{b.title}</span>
                       {activeBoardId === b.id && (
-                        <div className="w-2 h-2 rounded-full bg-green-500 shadow-[0_0_8px_rgba(34,197,94,0.6)] shrink-0" />
+                        <div className="shrink-0"><ActiveDot /></div>
                       )}
                     </motion.button>
                   ))}
@@ -102,10 +99,7 @@ export default function BoardSelector({ boards, activeBoardId }) {
         onClick={() => setShowModal(true)}
       >
         <div className="w-5 h-5 rounded-full bg-white/20 flex items-center justify-center group-hover:bg-white/30 transition-colors">
-          <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="4" strokeLinecap="round" strokeLinejoin="round">
-            <line x1="12" y1="5" x2="12" y2="19"></line>
-            <line x1="5" y1="12" x2="19" y2="12"></line>
-          </svg>
+          <PlusIcon size={14} strokeWidth={4} />
         </div>
         Tạo bảng mới
       </button>
@@ -113,22 +107,8 @@ export default function BoardSelector({ boards, activeBoardId }) {
       {mounted && createPortal(
         <AnimatePresence>
           {showModal && (
-            <motion.div 
-              className="fixed inset-0 bg-black/40 backdrop-blur-sm flex justify-center items-start z-[9999] pt-24 px-4" 
-              onClick={() => setShowModal(false)}
-              initial={{ opacity: 0 }}
-              animate={{ opacity: 1 }}
-              exit={{ opacity: 0 }}
-              transition={{ duration: 0.2 }}
-            >
-              <motion.div 
-                className="bg-white w-full max-w-[400px] rounded-[2rem] shadow-2xl flex flex-col overflow-hidden border border-white/10" 
-                onClick={e => e.stopPropagation()}
-                initial={{ opacity: 0, y: 32, scale: 0.96 }}
-                animate={{ opacity: 1, y: 0, scale: 1 }}
-                exit={{ opacity: 0, y: 16, scale: 0.98 }}
-                transition={{ type: 'spring', damping: 28, stiffness: 380 }}
-              >
+            <ModalOverlay onClose={() => setShowModal(false)} className="pt-24">
+              <ModalPanel className="max-w-[400px]">
                 <div className="p-8 pb-0">
                   <h3 className="text-2xl font-extrabold text-gray-900 m-0">Tạo bảng mới</h3>
                 </div>
@@ -169,8 +149,8 @@ export default function BoardSelector({ boards, activeBoardId }) {
                     </button>
                   </div>
                 </div>
-              </motion.div>
-            </motion.div>
+              </ModalPanel>
+            </ModalOverlay>
           )}
         </AnimatePresence>,
         document.body
