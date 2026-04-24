@@ -24,7 +24,10 @@ export async function getBoardData(boardId) {
             orderBy: { order: 'asc' },
             include: {
               assignee: {
-                select: { id: true, name: true, username: true }
+                select: { id: true, name: true, username: true, image: true }
+              },
+              _count: {
+                select: { comments: true }
               }
             }
           }
@@ -44,7 +47,10 @@ export async function getBoardData(boardId) {
               orderBy: { order: 'asc' },
               include: {
                 assignee: {
-                  select: { id: true, name: true, username: true }
+                  select: { id: true, name: true, username: true, image: true }
+                },
+                _count: {
+                  select: { comments: true }
                 }
               }
             }
@@ -94,7 +100,7 @@ export async function createCard(data) {
     },
     include: {
       assignee: {
-        select: { id: true, name: true, username: true }
+        select: { id: true, name: true, username: true, image: true }
       }
     }
   })
@@ -153,7 +159,7 @@ export async function updateCardDetails(cardId, data) {
       },
       include: {
         assignee: {
-          select: { id: true, name: true, username: true }
+          select: { id: true, name: true, username: true, image: true }
         }
       }
     })
@@ -175,7 +181,8 @@ export async function getUsers() {
     select: {
       id: true,
       name: true,
-      username: true
+      username: true,
+      image: true
     },
     orderBy: {
       name: 'asc'

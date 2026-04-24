@@ -8,19 +8,19 @@ import { updateCardOrder, createCard, updateCardDetails, deleteCard, getHistory 
 import dynamic from 'next/dynamic'
 import toast from 'react-hot-toast'
 import { motion, AnimatePresence } from 'framer-motion'
-import { ChevronDownIcon, PlusIcon, CloseIcon, ClockIcon, TrashIcon, UserIcon, CommentIcon } from './icons'
-import { ModalOverlay, ModalPanel, UserAvatar, ActiveDot, DROPDOWN_ANIMATION } from './ui'
+import { PlusIcon, UserIcon, CommentIcon } from './icons'
+import { UserAvatar } from './ui'
 import { getPreviewText } from '@/utils/text'
 import KanbanColumn from './KanbanColumn'
+import CardEditModal from './kanban/CardEditModal'
+import HistorySidebar from './kanban/HistorySidebar'
+import BoardHeader from './kanban/BoardHeader'
 
-const Editor = dynamic(() => import('@/components/Editor'), { 
-  ssr: false,
-  loading: () => <div style={{ padding: '20px', border: '1px solid rgba(0,0,0,0.1)', borderRadius: '12px', minHeight: '200px', backgroundColor: '#f8fafc' }}>Đang tải trình soạn thảo...</div>
-})
+import BoardSkeleton from './kanban/Skeleton'
 
 export default function KanbanBoardWrapper(props) {
   return (
-    <Suspense fallback={<div style={{ padding: '24px' }}>Đang tải bảng công việc...</div>}>
+    <Suspense fallback={<BoardSkeleton />}>
       <KanbanBoard {...props} />
     </Suspense>
   )
@@ -32,7 +32,7 @@ const KanbanCard = React.memo(({ card, index, openEditModal }) => {
     <Draggable draggableId={card.id} index={index}>
       {(provided, snapshot) => (
         <div
-          className={`bg-white rounded-2xl p-5 mb-4 cursor-grab relative border border-transparent ${snapshot.isDragging ? 'shadow-2xl opacity-95 scale-[1.02] z-50 ring-4 ring-green-500/20 rotate-1' : 'shadow-sm hover:shadow-md hover:border-green-200 transition-all duration-200'}`}
+          className={`bg-white p-3 mb-2 cursor-grab relative border border-border-subtle hover:bg-gray-50 transition-all ${snapshot.isDragging ? 'shadow-xl z-50 ring-2 ring-primary/20 rotate-1' : 'shadow-sm'} ${card.isPlaceholder ? 'opacity-50 grayscale pointer-events-none' : ''}`}
           ref={provided.innerRef}
           {...provided.draggableProps}
           {...provided.dragHandleProps}
@@ -41,37 +41,51 @@ const KanbanCard = React.memo(({ card, index, openEditModal }) => {
             ...provided.draggableProps.style,
           }}
         >
-          {card.displayId && (
-            <div className="text-[10px] font-bold text-gray-400 mb-1.5 font-mono bg-gray-50 inline-block px-1.5 py-0.5 rounded uppercase tracking-wider">
-              {card.displayId}
-            </div>
-          )}
-          <div className="font-bold text-gray-900 mb-2.5 break-words leading-[1.3] text-[15px]">{card.title}</div>
-          {card.description && (
-            <div className="text-sm text-gray-500 line-clamp-3 leading-relaxed mb-3">
-              {getPreviewText(card.description)}
-            </div>
-          )}
+          {/* Tags / Epic (Optional) */}
+          <div className="flex flex-wrap gap-1 mb-2">
+            <span className="text-[10px] font-bold px-1.5 py-0.5 rounded-sm bg-blue-100 text-blue-700 uppercase tracking-tight">ACCOUNTS</span>
+          </div>
+
+          <div className="text-[14px] text-text-main leading-snug mb-3">
+            {card.title}
+          </div>
           
-          <div className="mt-auto flex items-center justify-between">
-            {card.assignee ? (
-              <div className="flex items-center gap-2">
-                <div className="w-8 h-8 rounded-xl bg-gradient-to-br from-teal-500 to-teal-600 text-white flex items-center justify-center font-bold text-[11px] shadow-sm ring-2 ring-white" title={card.assignee.name}>
-                  {card.assignee.name.charAt(0).toUpperCase()}
-                </div>
-                <span className="text-[11px] font-bold text-gray-500">{card.assignee.name}</span>
-              </div>
-            ) : (
-              <div className="flex items-center gap-2 opacity-40">
-                <div className="w-8 h-8 rounded-xl bg-gray-200 flex items-center justify-center">
-                  <UserIcon />
-                </div>
-              </div>
-            )}
-            
+          <div className="flex items-center justify-between">
             <div className="flex items-center gap-2">
-               {card.description && (
-                 <CommentIcon />
+               {/* Task ID */}
+               <span className="text-[11px] font-bold text-text-muted hover:underline cursor-pointer">
+                 {card.displayId || 'KAN-000'}
+               </span>
+               
+               {/* Comments Count */}
+               {card._count?.comments > 0 && (
+                 <div className="flex items-center gap-1 text-text-muted opacity-60" title={`${card._count.comments} comments`}>
+                    <CommentIcon size={12} />
+                    <span className="text-[10px] font-bold">{card._count.comments}</span>
+                 </div>
+               )}
+            </div>
+
+            <div className="flex items-center gap-2">
+               {/* Priority Icon (Placeholder for High) */}
+               <div title="High Priority" className="text-red-500 opacity-80">
+                  <svg width="14" height="14" viewBox="0 0 24 24" fill="currentColor"><path d="M12 21l-12-18h24z"/></svg>
+               </div>
+
+               {/* Assignee */}
+               {card.assignee ? (
+                 <div className="ring-2 ring-white rounded-full">
+                   <UserAvatar 
+                     name={card.assignee.name} 
+                     image={card.assignee.image} 
+                     size="xs" 
+                     isActive={true} 
+                   />
+                 </div>
+               ) : (
+                 <div className="w-6 h-6 rounded-full bg-gray-100 flex items-center justify-center text-gray-400 border border-border-subtle">
+                    <UserIcon size={10} />
+                 </div>
                )}
             </div>
           </div>
@@ -84,7 +98,7 @@ const KanbanCard = React.memo(({ card, index, openEditModal }) => {
 // Rename for export
 KanbanCard.displayName = 'KanbanCard';
 
-function KanbanBoard({ initialBoard, users = [] }) {
+function KanbanBoard({ initialBoard, users = [], currentUser }) {
   // --- Board State ---
   const [board, setBoard] = useState(initialBoard)
   const [isMounted, setIsMounted] = useState(false)
@@ -100,10 +114,8 @@ function KanbanBoard({ initialBoard, users = [] }) {
   const [editForm, setEditForm] = useState({ title: '', description: '', assigneeId: null })
   const [showDeleteConfirm, setShowDeleteConfirm] = useState(false)
   
-  // --- History State ---
-  const [showHistory, setShowHistory] = useState(false)
-  const [historyLogs, setHistoryLogs] = useState([])
-  const [loadingHistory, setLoadingHistory] = useState(false)
+  // --- UI Logic State ---
+  const [isSaving, setIsSaving] = useState(false)
   
   const router = useRouter()
   const searchParams = useSearchParams()
@@ -136,12 +148,12 @@ function KanbanBoard({ initialBoard, users = [] }) {
   useEffect(() => {
     if (!isMounted) return
 
-    const timer = setTimeout(() => {
-      const cardIdFromUrl = searchParams.get('card')
-      if (cardIdFromUrl) {
-        const card = findCardById(cardIdFromUrl)
-        if (card && (!editingCard || (editingCard.displayId || editingCard.id) !== cardIdFromUrl)) {
-          // Open modal without pushing url again
+    const cardIdFromUrl = searchParams.get('card')
+    if (cardIdFromUrl) {
+      const card = findCardById(cardIdFromUrl)
+      if (card) {
+        // Only update if it's a different card to avoid double-triggering
+        if (!editingCard || (editingCard.displayId || editingCard.id) !== cardIdFromUrl) {
           setEditingCard(card)
           setEditForm({ 
             title: card.title, 
@@ -150,36 +162,28 @@ function KanbanBoard({ initialBoard, users = [] }) {
           })
           setShowDeleteConfirm(false)
           
-          // Also ensure the column is selected on mobile if the card belongs to a different column
           if (card.columnId !== selectedColumnId) {
             setSelectedColumnId(card.columnId)
           }
         }
-      } else if (editingCard) {
-        // url has no card parameter but modal is open (e.g. hit back button)
+      } else {
+        // If card ID in URL is invalid, clear it
         setEditingCard(null)
-        setShowDeleteConfirm(false)
       }
-    }, 0)
-
-    return () => clearTimeout(timer)
-  }, [searchParams, isMounted, editingCard, findCardById, selectedColumnId])
+    } else if (editingCard) {
+      setEditingCard(null)
+      setShowDeleteConfirm(false)
+      setIsAssigneeOpen(false)
+    }
+  }, [searchParams, isMounted, findCardById, selectedColumnId, editingCard])
 
   const openEditModal = useCallback((card) => {
-    setEditingCard(card)
-    setEditForm({ 
-      title: card.title, 
-      description: card.description || '',
-      assigneeId: card.assigneeId || null
-    })
-    setShowDeleteConfirm(false)
+    // Only update URL, the useEffect above will handle the state update
     router.push(`${pathname}?card=${card.displayId || card.id}`, { scroll: false })
   }, [pathname, router])
 
   const closeEditModal = useCallback(() => {
-    setEditingCard(null)
-    setShowDeleteConfirm(false)
-    setIsAssigneeOpen(false)
+    // Only update URL, the useEffect will handle the state cleanup
     router.push(pathname, { scroll: false })
   }, [pathname, router])
 
@@ -218,10 +222,21 @@ function KanbanBoard({ initialBoard, users = [] }) {
         return col
       })
 
+      // Save previous state for rollback
+      const previousBoard = { ...board }
       setBoard({ ...board, columns: newColumns })
 
       // Call server action
-      await updateCardOrder(updatedCards)
+      try {
+        const res = await updateCardOrder(updatedCards)
+        if (res.error) {
+          throw new Error(res.error)
+        }
+      } catch (error) {
+        console.error("Failed to update card order:", error)
+        toast.error("Không thể lưu vị trí thẻ. Đang hoàn tác...")
+        setBoard(previousBoard)
+      }
       return
     }
 
@@ -248,10 +263,21 @@ function KanbanBoard({ initialBoard, users = [] }) {
       return col
     })
 
+    // Save previous state for rollback
+    const previousBoard = { ...board }
     setBoard({ ...board, columns: newColumns })
 
     // Update server
-    await updateCardOrder([...updatedSourceCards, ...updatedDestCards])
+    try {
+      const res = await updateCardOrder([...updatedSourceCards, ...updatedDestCards])
+      if (res.error) {
+        throw new Error(res.error)
+      }
+    } catch (error) {
+      console.error("Failed to update card order:", error)
+      toast.error("Không thể lưu vị trí thẻ. Đang hoàn tác...")
+      setBoard(previousBoard)
+    }
   }
 
   const handleAddCard = async (columnId) => {
@@ -260,25 +286,63 @@ function KanbanBoard({ initialBoard, users = [] }) {
       return
     }
 
-    // Call server API
-    const res = await createCard({
+    const tempId = `temp-${Date.now()}`
+    const placeholderCard = {
+      id: tempId,
       title: newCardTitle,
-      columnId
-    })
-
-    if (res.success) {
-      const newColumns = board.columns.map(col => {
-        if (col.id === columnId) {
-          return { ...col, cards: [...col.cards, res.card] }
-        }
-        return col
-      })
-      setBoard({ ...board, columns: newColumns })
-      toast.success('Đã thêm thẻ mới')
+      description: '',
+      displayId: 'NEW',
+      order: 9999,
+      columnId,
+      assigneeId: null,
+      isPlaceholder: true
     }
 
+    // Save previous state for rollback
+    const previousBoard = { ...board }
+    
+    // Add placeholder immediately
+    const newColumns = board.columns.map(col => {
+      if (col.id === columnId) {
+        return { ...col, cards: [...col.cards, placeholderCard] }
+      }
+      return col
+    })
+    
+    setBoard({ ...board, columns: newColumns })
+    const titleToSave = newCardTitle
     setNewCardTitle('')
     setIsAddingCardTo(null)
+
+    // Call server API
+    try {
+      const res = await createCard({
+        title: titleToSave,
+        columnId
+      })
+
+      if (res.success) {
+        // Replace placeholder with real card
+        setBoard(currentBoard => ({
+          ...currentBoard,
+          columns: currentBoard.columns.map(col => {
+            if (col.id === columnId) {
+              return {
+                ...col,
+                cards: col.cards.map(c => c.id === tempId ? res.card : c)
+              }
+            }
+            return col
+          })
+        }))
+      } else {
+        throw new Error(res.error)
+      }
+    } catch (error) {
+      console.error("Failed to create card:", error)
+      toast.error("Không thể tạo thẻ. Đang hoàn tác...")
+      setBoard(previousBoard)
+    }
   }
 
   const handleKeyDown = (e, columnId) => {
@@ -295,22 +359,30 @@ function KanbanBoard({ initialBoard, users = [] }) {
   const handleSaveCard = async () => {
     if (!editForm.title.trim() || !editingCard) return
 
-    const res = await updateCardDetails(editingCard.id, editForm)
-    if (res.success) {
-      const newColumns = board.columns.map(col => {
-        if (col.id === editingCard.columnId) {
-          return {
-            ...col,
-            cards: col.cards.map(c => c.id === editingCard.id ? res.card : c)
+    setIsSaving(true)
+    try {
+      const res = await updateCardDetails(editingCard.id, editForm)
+      if (res.success) {
+        const newColumns = board.columns.map(col => {
+          if (col.id === editingCard.columnId) {
+            return {
+              ...col,
+              cards: col.cards.map(c => c.id === editingCard.id ? res.card : c)
+            }
           }
-        }
-        return col
-      })
-      setBoard({ ...board, columns: newColumns })
-      toast.success('Đã lưu thay đổi')
+          return col
+        })
+        setBoard({ ...board, columns: newColumns })
+        toast.success('Đã lưu thay đổi')
+        closeEditModal()
+      } else {
+        toast.error(res.error || 'Lỗi khi lưu thay đổi')
+      }
+    } catch (error) {
+      toast.error('Đã xảy ra lỗi không xác định')
+    } finally {
+      setIsSaving(false)
     }
-    
-    closeEditModal()
   }
 
   const handleDeleteCard = () => {
@@ -320,76 +392,47 @@ function KanbanBoard({ initialBoard, users = [] }) {
   const executeDeleteCard = async () => {
     if (!editingCard) return
     
-    const res = await deleteCard(editingCard.id)
-    if (res.success) {
-      // Remove from local state
-      const newColumns = board.columns.map(col => {
-        if (col.id === editingCard.columnId) {
-          return {
-            ...col,
-            cards: col.cards.filter(c => c.id !== editingCard.id)
+    setIsSaving(true)
+    try {
+      const res = await deleteCard(editingCard.id)
+      if (res.success) {
+        // Remove from local state
+        const newColumns = board.columns.map(col => {
+          if (col.id === editingCard.columnId) {
+            return {
+              ...col,
+              cards: col.cards.filter(c => c.id !== editingCard.id)
+            }
           }
-        }
-        return col
-      })
-      setBoard({ ...board, columns: newColumns })
-      toast.success('Đã xóa thẻ')
-      closeEditModal()
-    } else {
-      toast.error(res.error || 'Đã xảy ra lỗi khi xóa thẻ.')
-      setShowDeleteConfirm(false)
+          return col
+        })
+        setBoard({ ...board, columns: newColumns })
+        toast.success('Đã xóa thẻ')
+        closeEditModal()
+      } else {
+        toast.error(res.error || 'Đã xảy ra lỗi khi xóa thẻ.')
+        setShowDeleteConfirm(false)
+      }
+    } catch (error) {
+      toast.error('Đã xảy ra lỗi khi xóa thẻ')
+    } finally {
+      setIsSaving(false)
     }
   }
 
-  const handleOpenHistory = async () => {
-    setShowHistory(true)
-    setLoadingHistory(true)
-    const logs = await getHistory()
-    setHistoryLogs(logs)
-    setLoadingHistory(false)
-  }
-
   return (
-    <div className="flex flex-col h-full bg-green-50/40">
-      <header className="flex flex-col md:flex-row md:justify-between md:items-center px-6 md:px-8 py-4 md:py-5 bg-white/50 backdrop-blur-sm border-b border-green-900/5 gap-4">
-        <div className="flex items-center justify-between w-full md:w-auto">
-          <h2 className="text-xl md:text-2xl font-extrabold text-gray-900">{board.title}</h2>
-          <button 
-            className="md:hidden flex items-center gap-2 px-3 py-1.5 text-xs font-bold text-gray-600 hover:text-green-700 hover:bg-green-100/50 rounded-full transition-all border border-gray-200 bg-white shadow-sm" 
-            onClick={handleOpenHistory}
-          >
-            Lịch sử
-          </button>
-        </div>
-
-        <div className="flex items-center gap-3 w-full md:w-auto overflow-x-auto pb-1 md:pb-0 scrollbar-none">
-          {/* Mobile Column Selector */}
-          <div className="flex md:hidden items-center gap-2 w-full">
-            <label className="text-xs font-bold text-gray-500 uppercase tracking-wider shrink-0">Cột:</label>
-            <select 
-              className="flex-1 px-4 py-2 text-sm font-bold text-gray-700 bg-white border border-gray-200 rounded-full focus:outline-none focus:ring-4 focus:ring-green-500/10 transition-all appearance-none shadow-sm cursor-pointer"
-              value={selectedColumnId || ''}
-              onChange={(e) => setSelectedColumnId(e.target.value)}
-            >
-              {board.columns.map(col => (
-                <option key={col.id} value={col.id}>{col.title} ({col.cards.length})</option>
-              ))}
-            </select>
-          </div>
-
-          <button 
-            className="hidden md:flex items-center gap-2 px-4 py-2 text-sm font-bold text-gray-600 hover:text-green-700 hover:bg-green-100/50 rounded-full transition-all" 
-            onClick={handleOpenHistory}
-          >
-            <ClockIcon />
-            Lịch sử hoạt động
-          </button>
-        </div>
-      </header>
+    <div className="flex flex-col flex-1 h-full overflow-hidden">
+      <BoardHeader 
+        boardTitle={board.title}
+        columns={board.columns}
+        selectedColumnId={selectedColumnId}
+        setSelectedColumnId={setSelectedColumnId}
+        users={users}
+      />
       
       <div className="flex-1 relative overflow-hidden h-full">
         <DragDropContext onDragEnd={handleDragEnd}>
-          <div className="flex items-start p-6 md:p-8 h-full overflow-x-auto md:overflow-x-auto md:overflow-y-hidden gap-6 scroll-smooth">
+          <div className="flex items-start p-6 h-full overflow-x-auto gap-4 scroll-smooth">
             {board.columns.map((column, colIndex) => (
               <KanbanColumn
                 key={column.id}
@@ -416,195 +459,30 @@ function KanbanBoard({ initialBoard, users = [] }) {
         </DragDropContext>
       </div>
 
-      {/* Edit Card Modal */}
+      {/* Modals & Overlays */}
       {isMounted && createPortal(
-        <AnimatePresence>
-          {editingCard && (
-            <ModalOverlay onClose={closeEditModal} className="pt-16">
-              <ModalPanel className="max-w-[640px] max-h-[85vh]">
-                <div className="p-8 pb-4 border-b border-gray-100">
-                  {editingCard.displayId && (
-                    <div className="text-xs font-semibold text-gray-400 mb-2 font-mono">
-                      {editingCard.displayId}
-                    </div>
-                  )}
-                  <input 
-                    type="text" 
-                    value={editForm.title}
-                    onChange={e => setEditForm({...editForm, title: e.target.value})}
-                    placeholder="Tiêu đề thẻ..."
-                    className="w-full text-2xl font-bold text-gray-800 bg-transparent border-none focus:outline-none focus:ring-0 p-0 placeholder-gray-300"
-                  />
-                </div>
-                <div className="px-8 py-6 overflow-y-auto">
-                  <div className="w-full">
-                    <label className="text-sm font-semibold text-gray-500 mb-2 block ml-1">Người thực hiện</label>
-                    <div className="relative mb-6">
-                      <button
-                        onClick={() => setIsAssigneeOpen(!isAssigneeOpen)}
-                        className="w-full px-5 py-3.5 rounded-2xl border border-black/10 bg-gray-50 hover:bg-white text-gray-800 focus:outline-none focus:ring-4 focus:ring-green-500/10 focus:border-green-500 transition-all flex items-center justify-between group"
-                      >
-                        <div className="flex items-center gap-3">
-                          <div className="w-8 h-8 rounded-full bg-green-100 text-green-700 flex items-center justify-center font-bold text-xs border border-green-200 shrink-0">
-                            {editForm.assigneeId ? (users.find(u => u.id === editForm.assigneeId)?.name?.charAt(0).toUpperCase() || '?') : '?'}
-                          </div>
-                          <span className="font-bold text-[15px]">
-                            {editForm.assigneeId ? (users.find(u => u.id === editForm.assigneeId)?.name || users.find(u => u.id === editForm.assigneeId)?.username) : 'Chưa gán'}
-                          </span>
-                        </div>
-                        <div className={`text-gray-400 group-hover:text-green-600 transition-transform duration-300 ${isAssigneeOpen ? 'rotate-180' : ''}`}>
-                          <ChevronDownIcon size={18} />
-                        </div>
-                      </button>
-
-                      <AnimatePresence>
-                        {isAssigneeOpen && (
-                          <>
-                            <div className="fixed inset-0 z-[100]" onClick={() => setIsAssigneeOpen(false)} />
-                            <motion.div
-                              {...DROPDOWN_ANIMATION}
-                              className="absolute top-full left-0 mt-2 w-full bg-white border border-gray-200 rounded-3xl shadow-2xl z-[110] overflow-hidden p-2 origin-top"
-                            >
-                              <button
-                                onClick={() => {
-                                  setEditForm({...editForm, assigneeId: null})
-                                  setIsAssigneeOpen(false)
-                                }}
-                                className={`w-full text-left px-4 py-3 rounded-xl text-[14px] font-bold transition-all flex items-center gap-3 ${!editForm.assigneeId ? 'bg-green-50 text-green-700' : 'text-gray-600 hover:bg-gray-50'}`}
-                              >
-                                <div className="w-8 h-8 rounded-full bg-gray-100 flex items-center justify-center text-gray-400">
-                                  <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5"><path d="M18 6L6 18M6 6l12 12"/></svg>
-                                </div>
-                                <span>Không có</span>
-                              </button>
-                              
-                              <div className="h-px bg-gray-100 my-1 mx-2" />
-                              
-                              {users.map(user => (
-                                <button
-                                  key={user.id}
-                                  onClick={() => {
-                                    setEditForm({...editForm, assigneeId: user.id})
-                                    setIsAssigneeOpen(false)
-                                  }}
-                                  className={`w-full text-left px-4 py-3 rounded-xl text-[14px] font-bold transition-all flex items-center justify-between group ${editForm.assigneeId === user.id ? 'bg-green-50 text-green-700' : 'text-gray-600 hover:bg-gray-50'}`}
-                                >
-                                  <div className="flex items-center gap-3">
-                                    <UserAvatar 
-                                      name={user.name || user.username} 
-                                      isActive={editForm.assigneeId === user.id} 
-                                      size="sm" 
-                                    />
-                                    <span>{user.name || user.username}</span>
-                                  </div>
-                                  {editForm.assigneeId === user.id && (
-                                    <ActiveDot />
-                                  )}
-                                </button>
-                              ))}
-                            </motion.div>
-                          </>
-                        )}
-                      </AnimatePresence>
-                    </div>
-
-                    <label className="text-sm font-semibold text-gray-500 mb-2 block">Mô tả chi tiết</label>
-                    <div className="rounded-2xl border border-black/10 overflow-hidden focus-within:ring-4 focus-within:ring-green-500/20 focus-within:border-green-500 transition-all bg-gray-50 focus-within:bg-white">
-                      <div className="p-4">
-                        <Editor 
-                          value={editForm.description} 
-                          onChange={(data) => setEditForm({...editForm, description: data})} 
-                        />
-                      </div>
-                    </div>
-                    
-                    {showDeleteConfirm ? (
-                      <div className="mt-8 flex justify-between items-center bg-red-50 p-4 rounded-2xl border border-red-200">
-                        <span className="text-red-700 text-sm font-semibold">Bạn có chắc muốn xóa thẻ này không?</span>
-                        <div className="flex gap-2">
-                          <button className="text-red-800 hover:bg-red-100 px-4 py-2 rounded-full text-sm font-semibold transition-colors" onClick={() => setShowDeleteConfirm(false)}>Hủy</button>
-                          <button className="bg-red-500 hover:bg-red-600 text-white px-4 py-2 rounded-full text-sm font-semibold shadow-sm transition-all" onClick={executeDeleteCard}>Xác nhận Xóa</button>
-                        </div>
-                      </div>
-                    ) : (
-                      <div className="mt-8 flex justify-between items-center pt-4">
-                        <button className="text-red-500 hover:bg-red-50 hover:text-red-600 px-5 py-2.5 rounded-full text-sm font-semibold transition-colors flex items-center gap-2" onClick={handleDeleteCard}>
-                          <TrashIcon />
-                          Xóa thẻ
-                        </button>
-                        <div className="flex gap-3">
-                          <button className="text-gray-500 hover:bg-gray-100 hover:text-gray-800 px-6 py-2.5 rounded-full font-semibold transition-all text-sm" onClick={closeEditModal}>Hủy bỏ</button>
-                          <button className="bg-green-500 hover:bg-green-600 text-white px-6 py-2.5 rounded-full font-semibold transition-all shadow-sm hover:shadow-md hover:-translate-y-0.5 active:translate-y-0 text-sm" onClick={handleSaveCard}>Lưu thay đổi</button>
-                        </div>
-                      </div>
-                    )}
-                  </div>
-                </div>
-              </ModalPanel>
-            </ModalOverlay>
-          )}
-        </AnimatePresence>,
-        document.body
-      )}
-
-      {/* History Modal */}
-      {isMounted && createPortal(
-        <AnimatePresence>
-          {showHistory && (
-            <ModalOverlay onClose={() => setShowHistory(false)} className="pt-24">
-              <ModalPanel className="max-w-[500px]">
-                <div className="flex justify-between items-center p-6 px-8">
-                  <h3 className="text-xl font-bold text-gray-800">Lịch sử hoạt động</h3>
-                  <button className="text-gray-400 hover:text-gray-700 hover:bg-gray-200 p-2 rounded-full transition-colors" onClick={() => setShowHistory(false)}>
-                    <CloseIcon />
-                  </button>
-                </div>
-                <div className="p-0 max-h-[60vh] overflow-y-auto">
-                  {loadingHistory ? (
-                    <div className="p-6 space-y-4">
-                      {[1,2,3,4].map(i => (
-                        <div key={i} className="flex gap-4 animate-pulse">
-                          <div className="w-10 h-10 rounded-full bg-gray-200 shrink-0" />
-                          <div className="flex-1 space-y-2 py-1">
-                            <div className="h-4 bg-gray-200 rounded-full w-3/4" />
-                            <div className="h-3 bg-gray-100 rounded-full w-1/3" />
-                          </div>
-                        </div>
-                      ))}
-                    </div>
-                  ) : historyLogs.length === 0 ? (
-                    <div className="p-12 text-center">
-                      <div className="w-16 h-16 mx-auto mb-4 rounded-full bg-gray-100 flex items-center justify-center text-gray-400">
-                        <ClockIcon size={28} />
-                      </div>
-                      <p className="text-gray-500 font-semibold mb-1">Chưa có hoạt động nào</p>
-                      <p className="text-gray-400 text-sm">Các thay đổi sẽ được ghi lại tại đây.</p>
-                    </div>
-                  ) : (
-                    <ul className="divide-y divide-gray-100 m-0 p-0 list-none">
-                      {historyLogs.map((log, i) => (
-                        <motion.li key={log.id} className="p-5 px-8 flex gap-4 hover:bg-gray-50/50 transition-colors" initial={{ opacity: 0, x: -12 }} animate={{ opacity: 1, x: 0 }} transition={{ delay: i * 0.04 }}>
-                          <div className="w-10 h-10 rounded-full bg-green-100 text-green-700 flex items-center justify-center font-bold text-sm shrink-0 border border-green-200">
-                            {log.user.name ? log.user.name.charAt(0).toUpperCase() : '?'}
-                          </div>
-                          <div>
-                            <div className="text-[15px] text-gray-700 leading-snug">
-                              <span className="font-bold text-gray-900">{log.user.name || log.user.username}</span>{' '}
-                              {log.action} <span className="font-bold text-gray-900">{log.entityTitle}</span>
-                            </div>
-                            <div className="text-xs font-medium text-gray-400 mt-1.5">
-                              {new Date(log.createdAt).toLocaleString('vi-VN', { dateStyle: 'medium', timeStyle: 'short' })}
-                            </div>
-                          </div>
-                        </motion.li>
-                      ))}
-                    </ul>
-                  )}
-                </div>
-              </ModalPanel>
-            </ModalOverlay>
-          )}
-        </AnimatePresence>,
+        <>
+          <AnimatePresence>
+            {editingCard && (
+              <CardEditModal 
+                editingCard={editingCard}
+                editForm={editForm}
+                setEditForm={setEditForm}
+                closeEditModal={closeEditModal}
+                isAssigneeOpen={isAssigneeOpen}
+                setIsAssigneeOpen={setIsAssigneeOpen}
+                users={users}
+                handleDeleteCard={handleDeleteCard}
+                handleSaveCard={handleSaveCard}
+                showDeleteConfirm={showDeleteConfirm}
+                setShowDeleteConfirm={setShowDeleteConfirm}
+                executeDeleteCard={executeDeleteCard}
+                isSaving={isSaving}
+                currentUser={currentUser}
+              />
+            )}
+          </AnimatePresence>
+        </>,
         document.body
       )}
     </div>

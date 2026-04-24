@@ -40,16 +40,16 @@ export default function AuthForm({ type }) {
         })
         
         if (res?.error) {
-          const errMsg = 'Sai tên đăng nhập hoặc mật khẩu.'
+          const errMsg = 'Invalid username or password.'
           setError(errMsg)
           toast.error(errMsg)
         } else if (res?.ok) {
-          toast.success('Đăng nhập thành công!')
+          toast.success('Logged in successfully!')
           router.push('/')
           router.refresh()
         }
       } catch (err) {
-        const errMsg = 'Đã có lỗi xảy ra.'
+        const errMsg = 'Something went wrong.'
         setError(errMsg)
         toast.error(errMsg)
       }
@@ -70,122 +70,97 @@ export default function AuthForm({ type }) {
     setPending(false)
   }
 
-  if (!isMounted) return <div className="min-h-screen" />
+  if (!isMounted) return <div className="min-h-screen bg-white" />
 
   return (
-    <div className="flex justify-center items-center min-h-screen p-4 bg-green-50/20">
+    <div className="flex flex-col justify-center items-center min-h-screen p-4 bg-[#F4F5F7]">
       <motion.div 
-        initial={{ opacity: 0, y: 20 }}
-        animate={{ opacity: 1, y: 0 }}
-        transition={{ duration: 0.5, ease: "easeOut" }}
-        className="bg-white p-10 md:p-12 rounded-[2.5rem] shadow-xl w-full max-w-[460px] text-center border border-green-900/5 relative overflow-hidden"
+        initial={{ opacity: 0, scale: 0.95 }}
+        animate={{ opacity: 1, scale: 1 }}
+        className="bg-white p-10 rounded shadow-[0_8px_24px_rgba(149,157,165,0.2)] w-full max-w-[400px] border border-border-subtle"
       >
-        <div className="absolute top-0 left-0 w-full h-2 bg-green-500" />
-        
-        <div className="flex justify-center mb-8">
-          <motion.div 
-            whileHover={{ scale: 1.05, rotate: 5 }}
-            className="w-20 h-20 bg-green-50 rounded-[2rem] flex items-center justify-center text-green-500 shadow-sm border border-green-100"
-          >
-            <svg width="40" height="40" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round">
-              <rect x="3" y="11" width="18" height="11" rx="2" ry="2"></rect>
-              <path d="M7 11V7a5 5 0 0 1 10 0v4"></path>
-            </svg>
-          </motion.div>
+        <div className="flex flex-col items-center mb-8">
+           <svg width="40" height="40" viewBox="0 0 32 32" xmlns="http://www.w3.org/2000/svg" className="mb-4">
+              <rect width="32" height="32" rx="8" fill="#0052CC"/>
+              <rect x="6" y="7" width="5" height="18" rx="1.5" fill="white" opacity="0.95"/>
+              <rect x="13.5" y="7" width="5" height="12" rx="1.5" fill="white" opacity="0.95"/>
+              <rect x="21" y="7" width="5" height="15" rx="1.5" fill="white" opacity="0.95"/>
+          </svg>
+          <h1 className="text-xl font-bold text-[#172B4D]">
+            {isLogin ? 'Đăng nhập để tiếp tục' : 'Tạo tài khoản mới'}
+          </h1>
         </div>
         
-        <h1 className="text-3xl font-extrabold text-gray-900 tracking-tight mb-2">
-          {isLogin ? 'Chào mừng trở lại' : 'Tạo tài khoản mới'}
-        </h1>
-        <p className="text-gray-500 mb-8 font-medium">
-          {isLogin ? 'Đăng nhập để tiếp tục quản lý công việc' : 'Bắt đầu hành trình tối ưu năng suất cùng Aha Kanban'}
-        </p>
-        
         {error && (
-          <motion.div 
-            initial={{ opacity: 0, x: -10 }}
-            animate={{ opacity: 1, x: 0 }}
-            className="bg-red-50 text-red-600 p-4 rounded-2xl mb-6 text-sm font-semibold border border-red-100 flex items-center gap-3"
-          >
-            <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round"><circle cx="12" cy="12" r="10"></circle><line x1="12" y1="8" x2="12" y2="12"></line><line x1="12" y1="16" x2="12.01" y2="16"></line></svg>
+          <div className="bg-red-50 text-red-600 p-3 rounded text-sm font-medium border border-red-100 flex items-center gap-2 mb-6">
+            <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5"><circle cx="12" cy="12" r="10"></circle><line x1="12" y1="8" x2="12" y2="12"></line><line x1="12" y1="16" x2="12.01" y2="16"></line></svg>
             {error}
-          </motion.div>
+          </div>
         )}
         
         {success && (
-          <motion.div 
-            initial={{ opacity: 0, scale: 0.95 }}
-            animate={{ opacity: 1, scale: 1 }}
-            className="bg-green-50 text-green-700 p-4 rounded-2xl mb-6 text-sm font-semibold border border-green-100 flex items-center gap-3"
-          >
-            <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round"><polyline points="20 6 9 17 4 12"></polyline></svg>
+          <div className="bg-green-50 text-green-700 p-3 rounded text-sm font-medium border border-green-100 flex items-center gap-2 mb-6">
+            <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5"><polyline points="20 6 9 17 4 12"></polyline></svg>
             {success}
-          </motion.div>
+          </div>
         )}
         
-        <form className="flex flex-col gap-5 text-left" method="POST" onSubmit={handleSubmit}>
-          <div>
-            <label htmlFor="username" className="text-sm font-bold text-gray-700 mb-2 block ml-1">Tên đăng nhập</label>
-            <input 
-              className="w-full px-5 py-4 rounded-2xl border border-gray-200 bg-gray-50 text-gray-900 focus:bg-white focus:outline-none focus:border-green-500 focus:ring-4 focus:ring-green-500/10 transition-all placeholder:text-gray-400" 
-              id="username" 
-              name="username" 
-              type="text" 
-              placeholder="nhap_ten_cua_ban"
-              required 
-            />
-          </div>
+        <form className="flex flex-col gap-4" method="POST" onSubmit={handleSubmit}>
+          <input 
+            className="w-full px-3 py-2 rounded border-2 border-[#DFE1E6] bg-[#FAFBFC] text-text-main text-sm focus:bg-white focus:outline-none focus:border-primary transition-all placeholder:text-gray-400" 
+            id="username" 
+            name="username" 
+            type="text" 
+            placeholder="Tên đăng nhập"
+            required 
+          />
           
           {!isLogin && (
-            <div>
-              <label htmlFor="name" className="text-sm font-bold text-gray-700 mb-2 block ml-1">Họ và tên</label>
-              <input 
-                className="w-full px-5 py-4 rounded-2xl border border-gray-200 bg-gray-50 text-gray-900 focus:bg-white focus:outline-none focus:border-green-500 focus:ring-4 focus:ring-green-500/10 transition-all placeholder:text-gray-400" 
-                id="name" 
-                name="name" 
-                type="text" 
-                placeholder="Nguyễn Văn A"
-                required={!isLogin} 
-              />
-            </div>
+            <input 
+              className="w-full px-3 py-2 rounded border-2 border-[#DFE1E6] bg-[#FAFBFC] text-text-main text-sm focus:bg-white focus:outline-none focus:border-primary transition-all placeholder:text-gray-400" 
+              id="name" 
+              name="name" 
+              type="text" 
+              placeholder="Họ và tên"
+              required={!isLogin} 
+            />
           )}
           
-          <div>
-            <label htmlFor="password" className="text-sm font-bold text-gray-700 mb-2 block ml-1">Mật khẩu</label>
-            <input 
-              className="w-full px-5 py-4 rounded-2xl border border-gray-200 bg-gray-50 text-gray-900 focus:bg-white focus:outline-none focus:border-green-500 focus:ring-4 focus:ring-green-500/10 transition-all placeholder:text-gray-400" 
-              id="password" 
-              name="password" 
-              type="password" 
-              placeholder="••••••••"
-              required 
-            />
-          </div>
+          <input 
+            className="w-full px-3 py-2 rounded border-2 border-[#DFE1E6] bg-[#FAFBFC] text-text-main text-sm focus:bg-white focus:outline-none focus:border-primary transition-all placeholder:text-gray-400" 
+            id="password" 
+            name="password" 
+            type="password" 
+            placeholder="Mật khẩu"
+            required 
+          />
           
           <button 
-            className="bg-green-500 hover:bg-green-600 text-white w-full py-4 rounded-2xl font-bold transition-all shadow-lg shadow-green-500/20 hover:shadow-green-500/40 hover:-translate-y-0.5 active:translate-y-0 disabled:opacity-50 mt-4 flex items-center justify-center gap-2" 
+            className="bg-primary hover:bg-primary-hover text-white w-full py-2 rounded font-bold transition-all disabled:opacity-50 mt-2 flex items-center justify-center gap-2" 
             type="submit" 
             disabled={pending}
           >
-            {pending && <div className="w-5 h-5 border-2 border-white/30 border-t-white rounded-full animate-spin" />}
-            {pending ? 'Đang xử lý...' : (isLogin ? 'Đăng nhập ngay' : 'Đăng ký tài khoản')}
+            {pending && <div className="w-4 h-4 border-2 border-white/30 border-t-white rounded-full animate-spin" />}
+            {pending ? 'Đang xử lý...' : (isLogin ? 'Đăng nhập' : 'Đăng ký')}
           </button>
         </form>
-        
-        <div className="mt-10 text-sm text-gray-500 font-semibold bg-gray-50 py-4 rounded-2xl">
+
+        <div className="mt-8 pt-6 border-t border-border-subtle text-center">
           {isLogin ? (
-            <p>
-              Chưa có tài khoản?{' '}
-              <Link href="/register" className="text-green-600 font-bold hover:text-green-700 transition-colors">Tham gia ngay</Link>
-            </p>
+            <Link href="/register" className="text-primary text-sm font-medium hover:underline">
+              Chưa có tài khoản? Đăng ký ngay
+            </Link>
           ) : (
-            <p>
-              Đã có tài khoản?{' '}
-              <Link href="/login" className="text-green-600 font-bold hover:text-green-700 transition-colors">Đăng nhập</Link>
-            </p>
+            <Link href="/login" className="text-primary text-sm font-medium hover:underline">
+              Đã có tài khoản? Đăng nhập
+            </Link>
           )}
         </div>
       </motion.div>
+
+      <div className="mt-8 text-center text-xs text-text-muted">
+        <p>© 2026 Aha Kanban</p>
+      </div>
     </div>
   )
 }

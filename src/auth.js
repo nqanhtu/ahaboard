@@ -42,17 +42,25 @@ export const { handlers, auth, signIn, signOut } = NextAuth({
     strategy: "jwt"
   },
   callbacks: {
-    async jwt({ token, user }) {
+    async jwt({ token, user, trigger, session }) {
       if (user) {
         token.id = user.id;
         token.username = user.username;
+        token.name = user.name;
       }
+      
+      // Xử lý cập nhật session từ client (chỉ cập nhật tên, không cập nhật image vào JWT)
+      if (trigger === "update" && session) {
+        if (session.name !== undefined) token.name = session.name;
+      }
+      
       return token;
     },
     async session({ session, token }) {
       if (token) {
         session.user.id = token.id;
         session.user.username = token.username;
+        session.user.name = token.name;
       }
       return session;
     }

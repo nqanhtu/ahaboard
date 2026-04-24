@@ -1,26 +1,27 @@
 @import "tailwindcss";
 
 @theme {
-  --color-primary: #22c55e;
-  --color-primary-hover: #16a34a;
+  --color-primary: #0052CC; /* Atlassian Blue */
+  --color-primary-hover: #0747A6;
   
-  --color-bg-page: #f0fdf4; /* Very soft green/white */
-  --color-bg-board: #ffffff;
+  --color-bg-sidebar: #F4F5F7;
+  --color-bg-page: #FFFFFF;
+  --color-bg-board: #FFFFFF;
   
-  --color-col-pink: #fdf2f8;
-  --color-col-orange: #fff7ed;
-  --color-col-blue: #f0f9ff;
-  --color-col-purple: #f3e8ff;
+  /* Jira Status Colors */
+  --color-status-todo: #DFE1E6;
+  --color-status-inprogress: #0052CC;
+  --color-status-done: #36B37E;
   
-  --color-text-main: #1f2937;
-  --color-text-muted: #6b7280;
+  --color-border-subtle: #DFE1E6;
+  --color-text-main: #172B4D;
+  --color-text-muted: #5E6C84;
+  --color-text-link: #0052CC;
   
-  /* Soft geometry */
-  --radius-xl: 1rem;
-  --radius-2xl: 1.5rem;
-  --radius-3xl: 2rem;
-  
-  /* Tailwind automatically maps these to things like rounded-2xl if they match standard names, but we can just use the variables or Tailwind defaults */
+  /* Jira Geometry */
+  --radius-sm: 3px;
+  --radius-md: 8px;
+  --radius-xl: 12px;
 }
 
 /* Custom Scrollbar for a softer feel */

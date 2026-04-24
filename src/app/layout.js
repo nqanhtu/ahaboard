@@ -1,5 +1,6 @@
 import { Inter } from "next/font/google"
 import { Toaster } from "react-hot-toast"
+import { Providers } from "@/components/Providers"
 import "./globals.css"
 
 const inter = Inter({ subsets: ["latin"], variable: "--font-inter" })
@@ -22,7 +23,9 @@ export default function RootLayout({ children }) {
             fontSize: '14px',
           },
         }} />
-        {children}
+        <Providers>
+          {children}
+        </Providers>
       </body>
     </html>
   )
